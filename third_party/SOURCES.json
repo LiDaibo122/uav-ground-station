@@ -1,0 +1,55 @@
+{
+  "collected_on": "2026-11-14",
+  "repositories": [
+    {
+      "directory": "third_party/cbba_python",
+      "upstream": "https://github.com/zehuilu/CBBA-Python",
+      "commit": "269b14ad8623c075a16320ed8fa9de9d20472ad5",
+      "license": "MIT",
+      "license_file": "third_party/cbba_python/LICENSE",
+      "usage": "active multi-task consensus/bundle solver through fixed-wing adapter",
+      "changes": []
+    },
+    {
+      "directory": "third_party/sslap",
+      "upstream": "https://github.com/OllieBoyne/sslap",
+      "commit": "02c88a05dee1c33d5e0c9b405f947d522fb0b150",
+      "license": "MIT",
+      "license_file": "third_party/sslap/LICENSE.txt",
+      "usage": "compiled basic auction, optimality comparison only",
+      "changes": [
+        "sslap/auction_.pyx: np.float -> np.float64 for NumPy 1.24; patch recorded separately"
+      ]
+    }
+  ],
+  "unavailable": [
+    {
+      "url": "https://github.com/YunzeSong/Multi-UAVs-Task-Allocation-Algorithms",
+      "status": "404 when checked; not used"
+    }
+  ],
+  "papers": [
+    {
+      "title": "Consensus-Based Decentralized Auctions for Robust Task Allocation (Choi, Brunet, How, 2009)",
+      "doi": "10.1109/TRO.2009.2022423",
+      "role": "CBBA original paper referenced by upstream repository"
+    },
+    {
+      "title": "The Auction Algorithm: A Distributed Relaxation Method for the Assignment Problem (Bertsekas, 1988)",
+      "doi": "10.1007/BF02186476",
+      "role": "basic auction theory"
+    }
+  ],
+  "environment": {
+    "python": "3.8.10",
+    "platform": "x86_64",
+    "px4_tag": "v1.13.3",
+    "packages": {
+      "numpy": "1.24.4",
+      "scipy": "1.10.1",
+      "pymavlink": "2.4.49",
+      "Cython": "0.29.14",
+      "matplotlib": "3.1.2"
+    }
+  }
+}

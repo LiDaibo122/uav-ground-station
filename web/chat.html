@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#15201c">
+  <title>FieldLink · Qwen 调度台</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/chat.css">
+  <script type="module" src="/chat.js"></script>
+</head>
+<body>
+<header><div><strong>FieldLink <span>Qwen 调度台</span></strong><p>自然语言规划与调度 · 飞行态势可在 QGroundControl 查看</p></div><nav><a href="/?mode=live&amp;swarm=1" target="_blank" rel="noopener">三维地图 ↗</a><button id="new-conversation">新对话</button></nav></header>
+<main>
+  <section class="conversation" aria-label="Qwen 任务对话">
+    <div class="connection"><span id="model-state">检查本地 Qwen…</span><span id="flight-state">检查仿真…</span></div>
+    <div id="messages" aria-live="polite"><div class="intro"><span>任务对话</span><h1>直接描述你的巡检需求。</h1><p>可以查询状态、规划和修改任务、比较算法，再决定是否执行。这里与地图页面使用同一个地面内核，不加载地图、三维渲染或在线瓦片。</p><p>规划本身不会起飞；任务上传、指令接收和实际飞行进度会分别显示。</p></div></div>
+    <form id="chat-form"><label for="chat-input">输入需求</label><textarea id="chat-input" rows="4" maxlength="3000" placeholder="描述任务位置、优先级和需要的操作…" required></textarea><div class="compose-row"><small>Enter 发送 · Shift + Enter 换行</small><button id="send" type="submit">发送</button></div></form>
+  </section>
+  <aside aria-label="实时飞行状态"><h2>机群快照</h2><p class="muted">约每 3 秒刷新。QGC 使用独立遥测链路显示飞行。</p><div id="fleet">等待 PX4 遥测。</div><h2>巡检进度</h2><div id="mission">等待仿真。</div><p class="muted">“巡检完成”表示任务点已到达；返航、接地和上锁请结合飞行状态确认。</p><p id="last-update" class="muted"></p></aside>
+</main>
+</body>
+</html>

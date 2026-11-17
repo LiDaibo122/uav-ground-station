@@ -1,0 +1,8 @@
+{
+  "note": "Scenario payload declarations; thermal camera images are not implemented.",
+  "aircraft": {
+    "FW-01": {"capabilities": ["rgb"], "nominal_speed_mps": 18},
+    "FW-02": {"capabilities": ["rgb"], "nominal_speed_mps": 18},
+    "FW-03": {"capabilities": ["rgb", "thermal"], "nominal_speed_mps": 18}
+  }
+}

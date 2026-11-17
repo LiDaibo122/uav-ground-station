@@ -1,0 +1,8 @@
+# Reproduces the verified Python 3.8 / x86_64 development environment.
+# Gazebo Classic and PX4 are external executables, not Python dependencies.
+numpy==1.24.4
+scipy==1.10.1
+pymavlink==2.4.49
+Cython==0.29.14
+matplotlib==3.1.2
+Jinja2>=2.10,<3.2

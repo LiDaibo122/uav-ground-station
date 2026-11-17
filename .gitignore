@@ -1,0 +1,38 @@
+node_modules/
+dist/
+runs/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+
+# Local dependencies are fetched at revisions recorded in SOURCES.json.
+/third_party/cbba_python/
+/third_party/sslap/
+
+# Generated evidence and private run history stay on this machine.
+/reports/
+*.log
+*.pid
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+*.so
+*.o
+*.a
+*.bag
+*.db3
+*.ulg
+.DS_Store
+*.pem
+*.key
+
+# Downloaded model/runtime artifacts belong in an external artifact store.
+*.pt
+*.pth
+*.onnx
+*.engine
+*.gguf
+*.safetensors

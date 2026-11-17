@@ -1,0 +1,404 @@
+{
+  "source": "Recorded user conversation dcb2bdf2-9dee-4938-a2fc-53e414a1d322",
+  "user": "起飞3架无人机，分别去执行A\\B\\S区",
+  "assistant_calls": [
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_gkwu1rn6",
+          "function": {
+            "index": 0,
+            "name": "plan_inspection",
+            "arguments": {
+              "targets": [
+                {
+                  "frame": "zone",
+                  "label": "A区",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "A"
+                },
+                {
+                  "frame": "zone",
+                  "label": "B区",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "B"
+                },
+                {
+                  "frame": "zone",
+                  "label": "S区",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "S"
+                }
+              ],
+              "aircraft_ids": [
+                "FW-01",
+                "FW-02",
+                "FW-03"
+              ],
+              "algorithm": "cbba"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_h03rgsu0",
+          "function": {
+            "index": 0,
+            "name": "plan_inspection",
+            "arguments": {
+              "targets": [
+                {
+                  "frame": "zone",
+                  "label": "A区",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "A"
+                },
+                {
+                  "frame": "zone",
+                  "label": "B区",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "B"
+                },
+                {
+                  "frame": "zone",
+                  "label": "S区",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "S"
+                }
+              ],
+              "aircraft_ids": [
+                "FW-01",
+                "FW-02",
+                "FW-03"
+              ],
+              "algorithm": "cbba"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_1o133w9l",
+          "function": {
+            "index": 0,
+            "name": "plan_inspection",
+            "arguments": {
+              "targets": [
+                {
+                  "frame": "zone",
+                  "label": "A区",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "A"
+                },
+                {
+                  "frame": "zone",
+                  "label": "B区",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "B"
+                },
+                {
+                  "frame": "zone",
+                  "label": "S区",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "S"
+                }
+              ],
+              "aircraft_ids": [
+                "FW-01",
+                "FW-02",
+                "FW-03"
+              ],
+              "algorithm": "cbba"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_dah1vo0x",
+          "function": {
+            "index": 0,
+            "name": "plan_inspection",
+            "arguments": {
+              "targets": [
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "A"
+                },
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "B"
+                },
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "S"
+                }
+              ],
+              "aircraft_ids": [
+                "FW-01",
+                "FW-02",
+                "FW-03"
+              ],
+              "algorithm": "cbba"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_nv00jr9y",
+          "function": {
+            "index": 0,
+            "name": "plan_inspection",
+            "arguments": {
+              "targets": [
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "A"
+                },
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "B"
+                },
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "S"
+                }
+              ],
+              "aircraft_ids": [
+                "FW-01",
+                "FW-02",
+                "FW-03"
+              ],
+              "algorithm": "cbba"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_mm2o6zbh",
+          "function": {
+            "index": 0,
+            "name": "plan_inspection",
+            "arguments": {
+              "targets": [
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "x": null,
+                  "y": null,
+                  "zone_id": "A"
+                },
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "x": null,
+                  "y": null,
+                  "zone_id": "B"
+                },
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "x": null,
+                  "y": null,
+                  "zone_id": "S"
+                }
+              ],
+              "aircraft_ids": [
+                "FW-01",
+                "FW-02",
+                "FW-03"
+              ],
+              "algorithm": "cbba"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_zu7sh15j",
+          "function": {
+            "index": 0,
+            "name": "get_fleet_state",
+            "arguments": {}
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_fexltc89",
+          "function": {
+            "index": 0,
+            "name": "plan_inspection",
+            "arguments": {
+              "targets": [
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "A"
+                },
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "B"
+                },
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "S"
+                }
+              ],
+              "aircraft_ids": [
+                "FW-01",
+                "FW-02",
+                "FW-03"
+              ],
+              "algorithm": "cbba"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_fyd0bwv0",
+          "function": {
+            "index": 0,
+            "name": "plan_inspection",
+            "arguments": {
+              "targets": [
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "A"
+                },
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "B"
+                },
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "S"
+                }
+              ],
+              "aircraft_ids": [
+                "FW-01",
+                "FW-02",
+                "FW-03"
+              ],
+              "algorithm": "cbba"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_7713saud",
+          "function": {
+            "index": 0,
+            "name": "plan_inspection",
+            "arguments": {
+              "targets": [
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "A"
+                },
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "B"
+                },
+                {
+                  "frame": "zone",
+                  "priority": "normal",
+                  "sensor": "rgb",
+                  "zone_id": "S"
+                }
+              ],
+              "aircraft_ids": [
+                "FW-01",
+                "FW-02",
+                "FW-03"
+              ],
+              "algorithm": "cbba"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+import assert from 'node:assert/strict';
+import {chromium} from 'playwright';
+import {writeFile} from 'node:fs/promises';
+const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||'/home/ldb/.cache/ms-playwright/chromium-1140/chrome-linux/chrome',args:['--no-sandbox','--enable-unsafe-swiftshader','--use-angle=swiftshader','--disable-dev-shm-usage']});
+const result={checks:[],errors:[]};
+const check=(name,condition)=>{assert.ok(condition,name);result.checks.push(name);console.log('PASS',name);};
+const message='下发巡检任务：点1东1100米、北50米，常规优先级；点2东1350米、北400米，高优先级；点3东1650米、北750米，常规优先级。请根据无人机实时位置和电量分配，不指定飞机。';
+try{
+ const page=await browser.newPage({viewport:{width:1600,height:1000},deviceScaleFactor:1});
+ page.on('pageerror',e=>result.errors.push(e.message));
+ await page.goto('http://127.0.0.1:11843/?mode=live&swarm=1',{waitUntil:'domcontentloaded'});
+ await page.waitForFunction(async()=>{try{const s=await (await fetch('/api/simulation')).json();return s.ready&&s.report.status==='waiting_for_task'&&s.fleet.length===3&&s.fleet.every(a=>a.available&&a.battery_pct!==null);}catch{return false;}},{},{timeout:60000});
+ const initial=await page.evaluate(async()=>await(await fetch('/api/swarm')).json());
+ check('Session starts without preset task points',initial.report.tasks.length===0);
+ await page.waitForFunction(()=>fieldlink.state?.aircraft.length===3&&fieldlink.state.aircraft.every(a=>!a.stale&&a.speed_mps<1),{},{timeout:30000});
+ check('All three aircraft wait on ground',await page.evaluate(()=>fieldlink.state.aircraft.every(a=>a.speed_mps<1)));
+ await page.locator('[data-tab="chat"]').click();
+ const chatResponse=page.waitForResponse(r=>r.url().endsWith('/api/chat')&&r.request().method()==='POST',{timeout:190000});
+ await page.locator('#chat-input').fill(message);await page.locator('#chat-send').click();
+ result.chat=await(await chatResponse).json();
+ await page.waitForFunction(()=>!document.querySelector('#chat-send').disabled,{},{timeout:190000});
+ check('Actual local Qwen task enters operator-requested dispatch',result.chat?.action==='dispatch'&&Boolean(result.chat?.execution));
+ const targets=result.chat.draft.targets;
+ check('Qwen preserved new user coordinates',JSON.stringify(targets.map(t=>[t.x,t.y]))===JSON.stringify([[1100,50],[1350,400],[1650,750]]));
+ check('Per-point priority preserved',JSON.stringify(targets.map(t=>t.priority))===JSON.stringify(['normal','high','normal']));
+ check('Aircraft ownership delegated to algorithm',result.chat.draft.aircraft_ids.length===0);
+ check('Bids use real sensor state',result.chat.execution.allocation.input_fleet.every(a=>a.state_source.includes('BATTERY_STATUS')&&a.battery_pct!==null&&a.telemetry_age_s<2&&a.battery_telemetry_age_s<3));
+ await page.locator('[data-tab="tasks"]').click();
+ await page.waitForFunction(()=>['completed','sensor_error','error','timeout'].includes(fieldlink.swarm?.report?.status),{},{timeout:600000});
+ result.flight=await page.evaluate(()=>fieldlink.swarm.report);
+ check('Completion belongs to this exact Qwen submission',result.flight.execution_id===result.chat.execution.id);
+ check('Every Qwen task physically visited and PX4-confirmed',result.flight.success&&Object.values(result.flight.aircraft).reduce((n,a)=>n+Object.keys(a.visited).length,0)===3);
+ check('Points have Qwen request provenance',result.flight.tasks.every(t=>t.source==='qwen_user_request'));
+ await page.evaluate(()=>{const C=window.Cesium;fieldlink.map.viewer.camera.flyToBoundingSphere(new C.BoundingSphere(C.Cartesian3.fromDegrees(103.577,31.049,1400),1),{duration:0,offset:new C.HeadingPitchRange(0,-.9,6500)});});
+ await page.waitForTimeout(4000);
+ check('No unhandled browser errors',result.errors.length===0);
+ await page.screenshot({path:'reports/qwen-dispatch-live.png'});
+ result.message=message;
+}finally{
+ await writeFile('reports/qwen-dispatch-verification.json',JSON.stringify(result,null,2));
+ await browser.close();
+}

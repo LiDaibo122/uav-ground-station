@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+import {chromium} from 'playwright';
+const base=process.env.FRONTEND_PROBE_URL||'http://127.0.0.1:11973';
+const replay=JSON.parse(await readFile('reports/context-replay-verification.json','utf8')).cases.find(c=>c.case==='recorded_history').response;
+const state=await (await fetch('http://127.0.0.1:11843/api/state?mode=live')).json();
+const simulation=await (await fetch('http://127.0.0.1:11843/api/simulation')).json();
+const browser=await chromium.launch({headless:true,executablePath:'/home/ldb/.cache/ms-playwright/chromium-1140/chrome-linux/chrome',args:['--no-sandbox','--disable-dev-shm-usage']});
+const report={test:'UI replay of actual Qwen/algorithm response and one captured live fleet snapshot; no flight actuation',checks:[],pageErrors:[],requests:[]};
+const check=(name,value)=>{assert.ok(value,name);report.checks.push(name);};
+try{
+ const page=await browser.newPage({viewport:{width:1400,height:1000}});page.on('pageerror',e=>report.pageErrors.push(e.message));page.on('request',r=>report.requests.push(new URL(r.url()).pathname));
+ let posted;
+ await page.route('**/api/chat/stream',route=>route.fulfill({status:404,json:{error:'isolated legacy replay'}}));
+ await page.route('**/api/state?mode=live',route=>route.fulfill({json:state}));
+ await page.route('**/api/simulation',route=>route.fulfill({json:simulation}));
+ await page.route('**/api/chat',async route=>{posted=route.request().postDataJSON();await new Promise(resolve=>setTimeout(resolve,1400));await route.fulfill({json:replay});});
+ const started=performance.now();await page.goto(base+'/chat.html',{waitUntil:'domcontentloaded'});
+ await page.waitForSelector('#fleet .aircraft');report.initialReadyMs=performance.now()-started;
+ await page.evaluate(()=>document.fonts.ready);
+ check('Chinese font available on minimal Linux browser',await page.evaluate(()=>document.fonts.check('12px FieldLinkSC')));
+ check('No Cesium, WebGL or map tile resources',await page.evaluate(()=>!window.Cesium&&document.querySelectorAll('canvas').length===0)&&!report.requests.some(p=>p.includes('cesium')||p.includes('/tiles/')));
+ check('Actual three-aircraft snapshot visible',await page.locator('#fleet .aircraft').count()===3);
+ await page.locator('#chat-input').fill('先帮我规划三个巡检点，暂时不要执行');await page.locator('#send').click();
+ check('Model waiting does not block textarea editing',await page.locator('#chat-input').isEditable());
+ await page.waitForFunction(()=>!document.querySelector('#send').disabled);
+ check('Native agent request uses live mode and conversation id',posted.mode==='live'&&typeof posted.conversation_id==='string');
+ check('Model result renders actual allocation and coordinates',(await page.locator('.result').allTextContents()).join('\n').includes('东 1100m / 北 50m'));
+ check('Full tool trace expandable',await page.locator('details').count()===1);await page.locator('summary').click();check('Tool identity visible',(await page.locator('details').innerText()).includes('plan_inspection'));await page.locator('summary').click();
+ check('Actual token counters displayed',(await page.locator('.usage').innerText()).includes('4351'));
+ check('Desktop does not overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await page.screenshot({path:'reports/chat-lite.png'});
+ await page.setViewportSize({width:390,height:844});check('Mobile does not overflow',await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ const oldId=await page.evaluate(()=>sessionStorage.getItem('fieldlink-conversation-id'));await page.locator('#new-conversation').click();check('New conversation does not stop aircraft',await page.evaluate(()=>sessionStorage.getItem('fieldlink-conversation-id'))!==oldId&&!report.requests.some(p=>p==='/api/simulation/stop'));
+ report.transfer=await page.evaluate(()=>performance.getEntriesByType('resource').filter(r=>/\/chat\.(js|css)$/.test(new URL(r.name).pathname)||r.name.includes('/fonts/')).map(r=>({name:new URL(r.name).pathname,bytes:r.transferSize,durationMs:r.duration})));
+ check('No unhandled browser errors',report.pageErrors.length===0);
+}finally{await browser.close();await writeFile('reports/chat-lite-verification.json',JSON.stringify(report,null,2));}
+console.log(JSON.stringify(report,null,2));

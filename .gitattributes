@@ -1,0 +1,9 @@
+* text=auto
+*.sh text eol=lf
+*.py text eol=lf
+*.mjs text eol=lf
+*.js text eol=lf
+*.otf binary
+*.png binary
+# Preserve whitespace in upstream patch context verbatim.
+third_party/patches/*.patch -whitespace

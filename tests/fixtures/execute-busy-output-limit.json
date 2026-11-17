@@ -1,0 +1,30 @@
+{
+  "source": "Recorded pending turn from conversation dcb2bdf2-9dee-4938-a2fc-53e414a1d322; plan id replaced by latest-plan reference",
+  "pending_turn": [
+    {
+      "role": "user",
+      "content": "就按刚才这个方案执行。"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "function": {
+            "name": "execute_plan",
+            "arguments": {"plan_id": "", "algorithm": "cbba"}
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_name": "execute_plan",
+      "content": "{\"ok\": false, \"error\": \"已有任务正在执行。需要改变任务时，先查询进度并令相关飞机盘旋，再提交新方案\"}"
+    }
+  ],
+  "following_model_response": {
+    "message": {"role": "assistant", "content": ""},
+    "done_reason": "length"
+  }
+}

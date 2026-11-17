@@ -1,0 +1,107 @@
+{
+  "id": "dujiangyan-longchi",
+  "name": "都江堰 · 龙池山区",
+  "center": {
+    "longitude": 103.565,
+    "latitude": 31.045,
+    "height": 0
+  },
+  "origin": {
+    "longitude": 103.565,
+    "latitude": 31.045,
+    "altitude_m": 0
+  },
+  "bounds": {
+    "west": 103.46,
+    "south": 30.97,
+    "east": 103.66,
+    "north": 31.12
+  },
+  "coordinate_system": "WGS84",
+  "terrain": {
+    "type": "terrarium",
+    "url": "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
+    "attribution": "Terrain Tiles / Mapzen · NASA / USGS / CGIAR / GMTED"
+  },
+  "imagery": {
+    "type": "xyz",
+    "url": "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    "attribution": "Esri, Maxar, Earthstar Geographics, and the GIS User Community"
+  },
+  "simulator": {
+    "connected": false,
+    "required_renderer": "Gazebo heightmap or Cesium for Unreal",
+    "note": "浏览器地图不是 PX4 传感器输入；需在仿真器中加载地理对齐的场景，并由相机插件产生图像。"
+  },
+  "zones": [
+    {
+      "id": "A",
+      "name": "A 区 · 河谷巡检",
+      "color": "#8fbb8c",
+      "coordinates": [
+        [
+          103.528,
+          31.018
+        ],
+        [
+          103.57,
+          31.026
+        ],
+        [
+          103.578,
+          31.046
+        ],
+        [
+          103.535,
+          31.04
+        ]
+      ]
+    },
+    {
+      "id": "B",
+      "name": "B 区 · 山地巡检",
+      "color": "#e6b977",
+      "coordinates": [
+        [
+          103.55,
+          31.06
+        ],
+        [
+          103.593,
+          31.063
+        ],
+        [
+          103.589,
+          31.089
+        ],
+        [
+          103.548,
+          31.083
+        ]
+      ]
+    },
+    {
+      "id": "S",
+      "name": "S 区 · 平地仿真巡检",
+      "color": "#9dbbe0",
+      "coordinates": [
+        [
+          103.5734,
+          31.0442
+        ],
+        [
+          103.585,
+          31.0442
+        ],
+        [
+          103.585,
+          31.0525
+        ],
+        [
+          103.5734,
+          31.0525
+        ]
+      ]
+    }
+  ]
+}

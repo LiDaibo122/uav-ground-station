@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#141b19">
+  <title>FieldLink · 山野巡检地面站</title>
+  <meta name="description" content="自然灾害巡检地面站：真实三维地形、集群态势与本地 Qwen 助手。">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/vendor/cesium/Widgets/widgets.css">
+  <link rel="stylesheet" href="/styles.css">
+  <script>window.CESIUM_BASE_URL='/vendor/cesium/';</script>
+  <script src="/vendor/cesium/Cesium.js" defer></script>
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+<svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2Z M9 3v16m6-14v16"/></symbol>
+  <symbol id="i-plane" viewBox="0 0 24 24"><path d="m12 2 2 8 7 5v2l-8-2v5l3 2-4-1-4 1 3-2v-5l-8 2v-2l7-5Z"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 10 6-10 6L2 9Zm-9 11 9 5 9-5M3 18l9 5 9-5"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="m9 3-1 3-3 1v4l-2 1 2 2v4l3 1 1 3h5l1-3 4-1v-4l2-2-2-1V7l-4-1-1-3Z"/><circle cx="11.5" cy="12.5" r="3"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="m3 3 19 9-19 9 4-9Zm4 9h15"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="m7 4 14 8-14 8Z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-11v1"/></symbol>
+  <symbol id="i-signal" viewBox="0 0 24 24"><path d="M4 20v-4m5 4v-8m5 8V8m5 12V4"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path d="M3 7h5l2-3h5l2 3h4v14H3Z"/><circle cx="12" cy="13" r="4"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5Zm9 0v5h5M8 12h8m-8 4h6"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+</defs></svg>
+<div class="app-shell">
+  <header class="topbar">
+    <a href="/" class="brand" aria-label="FieldLink 首页"><span class="brand-mark"><svg viewBox="0 0 32 32"><path d="M3 25 12 7l5 10 4-7 9 15Z" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="m9 25 7-13 7 13" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></span><span>FIELDLINK<small>山野巡检地面站</small></span></a>
+    <div class="header-divider"></div><span class="workspace-name">自然灾害监测 <span class="muted">/</span> <b>巡检工作台</b></span>
+    <div class="topbar-right"><a class="light-chat-link" href="/chat.html">轻量对话</a><span class="connection-pill"><i id="px4-dot" class="dot dim"></i><span id="px4-status">PX4 未连接</span></span><span class="clock" id="clock">--:--:-- CST</span><button class="icon-button" id="settings-button" aria-label="地图与接入设置" title="地图与接入设置"><svg><use href="#i-settings"/></svg></button><span class="avatar">OP</span></div>
+  </header>
+  <nav class="rail" aria-label="工具导航">
+    <button class="rail-button active" id="nav-map" aria-label="地图总览" title="地图总览"><svg><use href="#i-map"/></svg><span>地图</span></button>
+    <button class="rail-button" id="nav-fleet" aria-label="无人机集群" title="无人机集群"><svg><use href="#i-plane"/></svg><span>集群</span></button>
+    <button class="rail-button" id="nav-tasks" aria-label="任务草案" title="任务草案"><svg><use href="#i-file"/></svg><span>任务</span></button>
+    <button class="rail-button" id="nav-layers" aria-label="地图图层" title="地图图层"><svg><use href="#i-layers"/></svg><span>图层</span></button>
+    <div class="rail-bottom"><span class="rail-line"></span><button class="rail-button" id="nav-help" aria-label="接入说明"><svg><use href="#i-info"/></svg><span>接入</span></button><span class="vertical-label">FIELD OPERATIONS</span></div>
+  </nav>
+  <main class="map-workspace">
+    <div id="cesiumContainer" aria-label="都江堰龙池山区真实三维地图"></div>
+    <div class="map-vignette"></div>
+    <div class="map-topline">
+      <div class="location-block"><div class="eyebrow">MISSION AREA <span>01</span></div><h1>都江堰 <span>—</span> 龙池山区</h1><p><span class="tiny-square"></span> 四川 · 中国 <span class="location-sep">/</span> WGS84</p></div>
+      <div class="map-top-actions"><button id="search-button" class="surface-button"><svg><use href="#i-search"/></svg><span>定位区域</span><kbd>/</kbd></button><button class="surface-button source-button" id="source-button"><svg><use href="#i-globe"/></svg><span id="map-source-label">卫星影像 + 真实地形</span><svg class="small-chevron"><use href="#i-chevron"/></svg></button></div>
+    </div>
+    <div class="map-statusline"><span class="status-tag"><i class="dot green"></i>真实地理数据</span><span class="status-tag demo-tag" id="data-mode-badge">演示航迹 · 非 PX4</span><span class="status-tag" id="terrain-status">地形加载中</span></div>
+    <div id="map-notice" class="map-notice" hidden><svg><use href="#i-info"/></svg><span></span><button aria-label="关闭地图提示">×</button></div>
+    <div class="map-toolbar" aria-label="地图控制">
+      <button id="north-button" class="compass" title="朝北" aria-label="地图朝北"><span>N</span><svg viewBox="0 0 24 24"><path d="m12 3 6 16-6-4-6 4Z"/></svg></button>
+      <div class="tool-group"><button id="zoom-in" aria-label="放大"><svg><use href="#i-plus"/></svg></button><button id="zoom-out" aria-label="缩小"><svg><use href="#i-minus"/></svg></button></div>
+      <div class="tool-group"><button id="home-view" aria-label="返回巡检区域" title="返回巡检区域"><svg><use href="#i-target"/></svg></button><button id="tilt-view" aria-label="切换俯视或三维" title="切换俯视 / 三维">3D</button><button id="full-view" aria-label="全屏地图" title="全屏地图"><svg><use href="#i-expand"/></svg></button></div>
+    </div>
+    <section class="fleet-panel glass" id="fleet-panel">
+      <div class="panel-heading"><div><span class="eyebrow">AIRCRAFT</span><h2>无人机集群 <span id="fleet-count">03</span></h2></div><button id="fleet-collapse" class="icon-button" aria-label="折叠集群列表"><svg><use href="#i-minus"/></svg></button></div>
+      <div id="fleet-list" class="fleet-list"></div>
+      <div class="fleet-footer"><span id="fleet-source">数据源：演示飞行器</span><button id="mode-switch">切换 PX4 <svg><use href="#i-chevron"/></svg></button></div>
+    </section>
+    <div class="map-bottom-row">
+      <div class="selected-card glass" id="selected-card"><span class="selected-icon"><svg><use href="#i-plane"/></svg></span><div class="selected-name"><small>当前选中</small><strong id="selected-id">UAV-01</strong></div><div class="metric"><span id="selected-altitude">2,600 <small>m</small></span><small id="altitude-label">演示高度</small></div><div class="metric"><span id="selected-speed">22 <small>m/s</small></span><small>地速</small></div><button class="follow-button" id="follow-button"><svg><use href="#i-target"/></svg><span>跟随</span></button></div>
+      <div class="playback glass"><button id="pause-demo" aria-label="暂停演示航迹" title="暂停演示航迹"><svg><use href="#i-pause"/></svg></button><div><span id="playback-label">航迹演示</span><small id="demo-time">00:00</small></div><span class="playback-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></div>
+    </div>
+    <div class="map-footer"><div id="map-credit"></div><span id="cursor-position">103.56500° E &nbsp; 31.04500° N</span></div>
+    <div class="loading-cover" id="map-loading"><div class="loader-orbit"></div><strong>正在展开山野</strong><span>加载都江堰 · 龙池山区的真实地图</span></div>
+  </main>
+  <aside class="assistant-panel">
+    <div class="assistant-heading"><span class="qwen-mark">✧</span><div><h2>Qwen 巡检助手</h2><p><i class="dot dim" id="model-dot"></i><span id="model-status">检查本地模型…</span></p></div><button id="clear-chat" class="icon-button" aria-label="新建对话" title="新建对话"><svg><use href="#i-plus"/></svg></button></div>
+    <div class="panel-tabs" role="tablist"><button class="active" data-tab="chat" role="tab" aria-selected="true">任务对话</button><button data-tab="tasks" role="tab" aria-selected="false">任务调度 <span id="task-count">0</span></button><button data-tab="connection" role="tab" aria-selected="false">接入状态</button></div>
+    <section class="tab-content active chat-tab" id="tab-chat" role="tabpanel">
+      <div class="chat-scroll" id="chat-scroll"><div class="welcome-message"><div class="eyebrow">YOUR FIELD COPILOT</div><h3>看清山野，<br>再决定下一步。</h3><p>描述巡检区域和关注事项，<br>我会结合当前态势整理任务草案。</p><div class="context-chip"><svg><use href="#i-map"/></svg>已关联：都江堰 · 龙池山区</div></div><div class="chat-day"><span></span>本地会话<span></span></div><div class="assistant-bubble initial-bubble"><span class="bubble-label">✧ QWEN</span><p>可以从河谷巡检或山地复核开始。地图使用真实地理数据，当前 3 架飞机为演示航迹。</p><p class="bubble-note">草案保存后仍需接入调度与执行端。</p></div><div id="messages" aria-live="polite"></div></div>
+      <div class="chat-bottom"><div class="suggestion-label">试试这样说</div><div class="suggestions"><button data-prompt="下发巡检任务：东1100米、北50米；东1350米、北400米。由算法根据实时状态分配飞机。">下发巡检点 <span>↗</span></button><button data-prompt="总结当前无人机状态，说明哪些数据是演示数据。">查看集群状态 <span>↗</span></button></div><form id="chat-form"><label class="sr-only" for="chat-input">输入巡检需求</label><textarea id="chat-input" placeholder="描述巡检需求，或询问当前态势…" rows="3" maxlength="3000"></textarea><div class="composer-footer"><span><i class="dot" id="composer-dot"></i> 本地 Qwen <small>·</small> <span id="composer-model">…</span></span><button type="submit" id="chat-send" aria-label="发送给 Qwen"><svg><use href="#i-send"/></svg></button></div></form><p class="composer-hint">Enter 发送 <span>·</span> Shift + Enter 换行</p></div>
+    </section>
+    <section class="tab-content" id="tab-tasks" role="tabpanel" hidden><div class="sim-controls"><strong id="sim-state">检查固定翼仿真…</strong><p>上线后，在对话中指定巡检点并要求下发。</p><button id="start-sim" class="outline-button">启动固定翼仿真</button><button id="stop-sim" class="outline-button" disabled>停止仿真</button></div><div id="swarm-panel" class="swarm-panel" hidden><span class="eyebrow">QWEN → TOOLS → PX4</span><h3>固定翼集群调度</h3><p id="swarm-summary"></p><div id="swarm-routes"></div><p class="swarm-note">平地物理仿真 · 地图仅作地理对齐<br>按实时位置、电量和场景载荷配置分配。</p></div><div class="section-intro"><span class="eyebrow">MISSION DRAFTS</span><h3>任务草案记录</h3><p>要求生成草案时仅保存；明确要求下发时进入仿真调度。</p></div><div id="tasks-list"></div></section>
+    <section class="tab-content" id="tab-connection" role="tabpanel" hidden><div class="section-intro"><span class="eyebrow">SYSTEM CONNECTIONS</span><h3>从地图，到传感器。</h3><p>网页渲染与仿真相机是两条链路。</p></div><div class="connection-list"><div><i class="connection-symbol">01</i><span><strong>真实三维地图</strong><small id="connection-map">真实高程 + 卫星影像</small></span><b class="connection-state" id="connection-map-state">加载中</b></div><div><i class="connection-symbol">02</i><span><strong>本地 Qwen</strong><small id="connection-model">Ollama · 连接中</small></span><b class="connection-state" id="connection-model-state">检查中</b></div><div><i class="connection-symbol">03</i><span><strong>PX4 遥测</strong><small>PX4 SITL / MAVROS 接收</small></span><b class="connection-state muted" id="connection-px4-state">未连接</b></div><div><i class="connection-symbol">04</i><span><strong>仿真相机</strong><small>需要仿真器渲染并发布图像</small></span><b class="connection-state muted">未接入</b></div></div><div class="sensor-placeholder"><svg><use href="#i-camera"/></svg><strong>等待仿真图像</strong><p>此处不会用地图截图<br>冒充 PX4 传感器画面。</p><span>NO SENSOR STREAM</span></div><button class="outline-button full-width" id="export-scene"><svg><use href="#i-download"/></svg>导出场景对齐说明</button><p class="connection-note">Google 实景三维可在线接入 Cesium。Gazebo 相机需要对应的本地场景；Unreal 可使用 Cesium 插件加载同源地图。</p></section>
+    <div class="assistant-bottom"><span class="dot green"></span>LOCAL WORKSPACE <span class="version">v0.1</span></div>
+  </aside>
+  <footer class="statusbar"><span><i class="dot green"></i>地面站运行中</span><span id="footer-source">演示模式</span><span class="statusbar-right">CIVIL DISASTER MONITORING <span class="status-separator">/</span> <b>FIELDLINK</b></span></footer>
+</div>
+<dialog id="settings-dialog" class="settings-dialog"><form method="dialog" class="dialog-close-form"><button class="icon-button" aria-label="关闭设置"><svg><use href="#i-close"/></svg></button></form><span class="eyebrow">MAP & CONNECTIONS</span><h2>地图与接入设置</h2><p class="dialog-description">选择地理数据源。三维地图不代表实时灾情。</p><div class="source-options"><label class="source-option"><input type="radio" name="map-source" value="terrain" checked><span><strong>卫星影像 + 真实地形</strong><small>Esri 影像 / 开放高程 · 无需 Key</small></span><span class="option-badge">默认</span></label><label class="source-option"><input type="radio" name="map-source" value="google"><span><strong>Google 实景三维</strong><small>Photorealistic 3D Tiles · 需 API Key</small></span><span class="google-g">G</span></label></div><div class="google-config" id="google-config" hidden><label for="google-key">Google Map Tiles API Key</label><input type="password" id="google-key" autocomplete="off" placeholder="仅保存在当前页面内存中"><p>需启用 Map Tiles API 与计费。按需加载可能产生费用；当前地区的实景三维覆盖以 Google 为准。<a href="https://developers.google.com/maps/documentation/tile/3d-tiles" target="_blank" rel="noreferrer">查看官方说明 ↗</a></p></div><div class="settings-toggles"><label><span><strong>巡检区域</strong><small>A / B 区域为演示任务范围</small></span><input type="checkbox" id="toggle-zones" checked role="switch"></label><label><span><strong>飞行轨迹</strong><small>显示当前数据源的飞机轨迹</small></span><input type="checkbox" id="toggle-trails" checked role="switch"></label></div><div class="settings-note"><svg><use href="#i-info"/></svg><p>Google 图层只在线加载，不下载导出。地形高程与飞行高度的基准需在接入仿真时校准。</p></div><button class="primary-button full-width" id="apply-settings">应用地图设置 <svg><use href="#i-chevron"/></svg></button><div id="settings-error" class="inline-error" aria-live="polite"></div></dialog>
+<dialog id="search-dialog" class="search-dialog"><form method="dialog" class="dialog-close-form"><button class="icon-button" aria-label="关闭定位"><svg><use href="#i-close"/></svg></button></form><span class="eyebrow">FIND A LOCATION</span><h2>定位地图</h2><form id="location-form"><label for="location-input">输入经度, 纬度，或选择下方地点</label><div class="location-input-row"><input id="location-input" placeholder="103.565, 31.045" autocomplete="off"><button class="primary-button" type="submit">定位</button></div><div id="location-error" class="inline-error"></div></form><div class="location-presets"><button data-lon="103.565" data-lat="31.045" data-name="龙池巡检区域"><svg><use href="#i-map"/></svg><span>龙池巡检区域<small>四川 · 都江堰</small></span><svg><use href="#i-chevron"/></svg></button><button data-lon="103.614" data-lat="31.002" data-name="都江堰城区"><svg><use href="#i-map"/></svg><span>都江堰城区<small>四川 · 都江堰</small></span><svg><use href="#i-chevron"/></svg></button><button data-lon="-122.4194" data-lat="37.7749" data-name="旧金山"><svg><use href="#i-globe"/></svg><span>旧金山<small>Google 3D 图层查看地点</small></span><svg><use href="#i-chevron"/></svg></button></div></dialog>
+<div id="toast" class="toast" role="status" hidden></div>
+</body></html>

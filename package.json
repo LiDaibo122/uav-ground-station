@@ -1,0 +1,14 @@
+{
+  "name": "fieldlink-ground-station",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "python3 server/app.py",
+    "build": "node scripts/build.mjs",
+    "test": "python3 -m unittest discover -s tests -v",
+    "test:browser": "node tests/browser.mjs"
+  },
+  "dependencies": { "cesium": "1.123.1" },
+  "devDependencies": { "playwright": "1.48.2" }
+}
