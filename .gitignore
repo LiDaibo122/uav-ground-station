@@ -36,3 +36,5 @@ venv/
 *.engine
 *.gguf
 *.safetensors
+
+/config/map_sources.local.json

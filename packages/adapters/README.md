@@ -1,12 +1,5 @@
-# 底座适配预留目录
+# XD 仿真命令发射端
 
-未来 XD ROS1 适配实现放在此处，统一负责：
+双机联调用 `python3 /home/ldb/uav-integration/scripts/xd_single.py start --dual --web`。工具参数及 ROS 端点可从 `GET /api/xd/interfaces` 读取。按机号分发和隔离草案的代码在 `xd_fleet.py`，模块交接清单和只读自检命令见相邻联调仓库的 `contracts/XD_DUAL.md`。
 
-- 读取底座状态、定位健康、离地/解锁状态、电量和感知观测。
-- 将地面任务转换为 `planning/task_path`，并跟踪对应的 `goal_id`。
-- 调用公开的 `control_manager` 起降服务及 `planning/cancel`。
-- 管理取消、暂停、恢复和控制权交接。
-
-当前尚未实现 XD 网关，现有工具仍通过 `swarm_sim.Session` 执行。此次仅分离任务分配模块并保留适配位置，不声称底座已接通。
-
-跨仓库接口约定与配置示例集中维护在相邻 `uav-integration/` 仓库中。实现时使用独立 ROS1 进程，使地面核心不直接依赖 ROS Python 环境。
+加载联调工作空间环境后，在地面站仓库用 `python3 -m packages.adapters.xd_command` 发送命令。客户端发布到 `/ground_bridge/command`，按指令编号读取 `/ground_bridge/result`。起飞、航路、释放和返航由 XD 单机桥接包调用底座执行。操作示例在相邻联调仓库的 `docs/XD_SINGLE_RUNBOOK.md`。使用 `python3 /home/ldb/uav-integration/scripts/xd_single.py start --web` 启动单机 Qwen 网页。浏览器访问 <http://127.0.0.1:11844/chat.html>。单机工具与回执处理在 `xd_web.py`，飞行控制由 XD 执行。

@@ -24,10 +24,10 @@ SYSTEM+='\n先核对工具能力再处理复合动作。当前只提供绝对坐
 MAX_MODEL_STEPS=10
 MAX_TOOL_CALLS=12
 CONTEXT_TOKENS=16384
-READ_TOOLS=('get_fleet_state','get_mission_status')
+READ_TOOLS=('get_fleet_state','get_mission_status','xd_state','xd_allocation_status')
 
 
-def stopped_reply(reason,error,trace):
+def stopped_reply(reason,error,trace,registry=BY_NAME):
     """Describe the actual blocking result, independently of model speculation."""
     if reason=='task_constraint':
         text='本轮任务校验未通过：'+error['error']
@@ -54,9 +54,9 @@ def stopped_reply(reason,error,trace):
     else:
         text='本轮工具处理已结束，已有结果和回执保留在下方。'
         if error:text+='最后反馈：'+error['error']
-    writes=[e for e in trace if e['status']=='success' and BY_NAME.get(e['tool'],{}).get('write')
+    writes=[e for e in trace if e['status']=='success' and registry.get(e['tool'],{}).get('write')
             and (e['tool']!='control_aircraft' or e['result']['result'].get('receipts'))]
-    uncertain=[e for e in trace if e['status']=='error' and BY_NAME.get(e['tool'],{}).get('write')
+    uncertain=[e for e in trace if e['status']=='error' and registry.get(e['tool'],{}).get('write')
                and e['result'].get('code')=='tool_unavailable']
     if writes:
         text+=' 已取得的执行回执仍有效，请以实时遥测确认飞机实际状态。'
@@ -70,8 +70,12 @@ def stopped_reply(reason,error,trace):
 
 
 class Agent:
-    def __init__(self,root,request_model,model,environment,think=True,request_stream=None):
+    def __init__(self,root,request_model,model,environment,think=True,request_stream=None,
+                 runtime_factory=ToolRuntime,system=SYSTEM,registry=BY_NAME):
         self.root=Path(root);self.request_model=request_model;self.model=model;self.environment=environment
+        self.runtime_factory=runtime_factory
+        self.system=system
+        self.registry=registry
         self.think=think
         self.request_stream=request_stream
         self.lock=threading.Lock();self.conversations={};self.activities={};self.locks={}
@@ -103,9 +107,19 @@ class Agent:
         conversation,lock=self._load(key)
         if not lock.acquire(blocking=False):raise RuntimeError('本会话仍在处理上一条消息')
         began=time.monotonic();trace=[];turn=[]
-        runtime=ToolRuntime(self.environment,conversation,'demo' if data.get('mode')=='demo' else 'live',text)
+        mode = data.get('mode')
+        modes = ('demo', 'xd_plan_only', 'xd_dispatch_only', 'xd_vehicle', 'xd_task_library')
+        environment = dict(self.environment, **{field: data[field] for field in ('displayed_plan_id', 'vehicle_id', 'library_run_id', 'library_revision') if field in data})
+        try:
+            runtime = self.runtime_factory(environment, conversation, mode if mode in modes else 'live', text)
+            required_tool = getattr(runtime, 'required_tool', None)
+        except Exception:
+            lock.release()
+            raise
         with self.lock:self.activities[key]={'status':'thinking','events':[]}
         def publish(event):
+            if required_tool and event['type']=='text_delta':
+                return
             if event['type'] in ('model_start','model_progress'):
                 with self.lock:self.activities[key]['generation']=copy.deepcopy(event)
             if emit:emit(copy.deepcopy(event))
@@ -121,20 +135,28 @@ class Agent:
             partial_reply=''
             for step in range(MAX_MODEL_STEPS):
                 if time.monotonic()-began>=90:
-                    stop_reason='turn_timeout';reply_source='controller';reply=stopped_reply(stop_reason,last_error,trace);break
+                    stop_reason='turn_timeout';reply_source='controller';reply=stopped_reply(stop_reason,last_error,trace,self.registry);break
                 final_step=step==MAX_MODEL_STEPS-1 or len(trace)>=MAX_TOOL_CALLS
-                system=SYSTEM
+                system=getattr(runtime, 'system', self.system)
+                if required_tool:
+                    system = ('用户正在确认已经展示的集群草案。本轮唯一可用工具是 '+required_tool+
+                              '。读取 latest_cluster_plan.id 作为 plan_id，原样调用该工具一次，然后等待真实回执。')
+                    if step and not trace:
+                        system += '上一次只返回文字，请立即发起工具调用。'
+                if getattr(runtime, 'workbench', False) and not trace and step:
+                    system += ' 上次只有文字，没有工具回执。请实际发起当前意图对应的工具调用，不能用文字代替动作草案。'
                 if final_step:system+='\n本轮工具预算已用完。根据已返回的结果直接总结，不再请求工具，不把回执说成任务完成。'
                 definitions=[] if final_step else runtime.definitions()
                 reserve=4096 if self.think else 1800
                 try:
                     model_turn=copy.deepcopy(turn)
                     for index,thinking in current_thinking.items():model_turn[index]['thinking']=thinking
-                    messages,packing=build_context_messages(system,runtime.context(),conversation['turns'],model_turn,
+                    history = [] if required_tool else conversation['turns']
+                    messages,packing=build_context_messages(system,runtime.context(),history,model_turn,
                         definitions,num_ctx=CONTEXT_TOKENS,reserve_tokens=reserve)
                 except ContextBudgetError as exc:
                     model_error=str(exc);stop_reason='context_budget';reply_source='controller'
-                    reply=stopped_reply(stop_reason,last_error,trace)
+                    reply=stopped_reply(stop_reason,last_error,trace,self.registry)
                     break
                 try:
                     payload={'model':self.model,'stream':False,'think':self.think,
@@ -163,14 +185,14 @@ class Agent:
                 if response.get('done_reason') in ('thinking_timeout','generation_timeout','stream_interrupted'):
                     stop_reason=response['done_reason'];model_error=response.get('stream_error') or stop_reason
                     partial_reply=message.get('content','');reply_source='controller'
-                    reply=stopped_reply(stop_reason,last_error,trace);break
+                    reply=stopped_reply(stop_reason,last_error,trace,self.registry);break
                 if response.get('done_reason')=='length':
                     used=[response.get('prompt_eval_count'),response.get('eval_count')]
                     context_full=all(isinstance(n,int) for n in used) and sum(used)>=CONTEXT_TOKENS-16
                     stop_reason='context_limit' if context_full else 'model_output_limit'
                     model_error='上下文空间不足' if context_full else '模型输出达到长度上限'
                     partial_reply=message.get('content','')
-                    reply=stopped_reply(stop_reason,last_error,trace);reply_source='controller'
+                    reply=stopped_reply(stop_reason,last_error,trace,self.registry);reply_source='controller'
                     break
                 calls=message.get('tool_calls',[])
                 assistant={'role':'assistant','content':message.get('content','')}
@@ -178,6 +200,20 @@ class Agent:
                 if calls and message.get('thinking'):current_thinking[len(turn)]=message['thinking']
                 turn.append(assistant)
                 if not calls:
+                    if getattr(runtime, 'workbench', False) and not trace:
+                        if step == 0:
+                            turn.pop()
+                            continue
+                        reply = assistant['content'].strip() + '\n本轮没有工具调用，没有生成可确认的动作。'
+                        reply_source = 'controller'
+                        break
+                    if required_tool:
+                        turn.pop()
+                        if step == 0 and not trace:
+                            continue
+                        reply = '本轮没有取得草案确认回执，未提交新的飞行任务。可在巡检进度查看已有记录。'
+                        reply_source = 'controller'
+                        break
                     reply=assistant['content'].strip()
                     if not reply:raise RuntimeError('模型没有返回有效回复')
                     break
@@ -186,7 +222,7 @@ class Agent:
                     if isinstance(args,str):
                         try:args=json.loads(args)
                         except ValueError:pass
-                    event={'tool':name,'label':BY_NAME.get(name,{}).get('label',name),'arguments':args,
+                    event={'tool':name,'label':self.registry.get(name,{}).get('label',name),'arguments':args,
                            'selected_by':'qwen','status':'running','started_at':time.time()}
                     self._event(key,event)
                     publish({'type':'tool_start','tool':name,'label':event['label'],'arguments':args})
@@ -230,10 +266,15 @@ class Agent:
                     conversation['pending_turn']=turn
                     self._persist(conversation)
                 if stop_reason:
-                    reply=stopped_reply(stop_reason,last_error,trace);reply_source='controller'
+                    reply=stopped_reply(stop_reason,last_error,trace,self.registry);reply_source='controller'
+                    break
+                if required_tool and any(e['tool']==required_tool and e['status']=='success' for e in trace):
+                    receipt=next(e['result']['result'] for e in trace if e['tool']==required_tool and e['status']=='success')
+                    reply=runtime.receipt_reply(receipt)
+                    reply_source='controller'
                     break
             else:
-                stop_reason='tool_budget';reply=stopped_reply(stop_reason,last_error,trace);reply_source='controller'
+                stop_reason='tool_budget';reply=stopped_reply(stop_reason,last_error,trace,self.registry);reply_source='controller'
             if reply_source=='controller':
                 turn.append({'role':'assistant','content':reply})
             conversation.pop('pending_turn',None);conversation['turns'].append(turn)

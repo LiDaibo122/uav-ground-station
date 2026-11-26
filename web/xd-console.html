@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FieldLink · 巡检地面站</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/xd-console.css">
+  <script type="module" src="/xd-console.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="brand-icon" aria-hidden="true">✧</span><div><h1>巡检地面站</h1><span>FieldLink / XD</span></div></div>
+  <div class="connections"><span id="flight-state">连接遥测中</span><span id="model-state">连接 Qwen 中</span></div>
+</header>
+<main id="workspace">
+  <section class="map-card panel" aria-labelledby="map-title">
+    <div class="panel-heading"><div><h2 id="map-title">二维飞行地图</h2><p id="map-layer">仿真 World · 东 / 北坐标（m）</p></div>
+      <details class="layer-menu"><summary>底图</summary>
+        <label for="basemap-source">地图来源</label>
+        <select id="basemap-source">
+          <option value="grid">离线坐标网格</option>
+          <option value="maplibre">MapLibre · OpenFreeMap</option>
+          <option value="osm">OpenStreetMap 道路</option>
+          <option value="maptiler-streets">MapTiler 道路</option>
+          <option value="maptiler-satellite">MapTiler 卫星</option>
+        </select>
+        <label for="map-coordinates">GeoJSON 坐标</label>
+        <select id="map-coordinates"><option value="world">World 东 / 北（米）</option><option value="wgs84" disabled>WGS84 经 / 纬度</option></select>
+        <label class="file-label">导入 GeoJSON<input id="map-file" type="file" accept=".json,.geojson,application/geo+json"></label>
+        <button id="remove-layer" type="button">清除 GeoJSON</button>
+      </details>
+    </div>
+    <details id="river-trial" hidden>
+      <summary>双机河堤巡检 · 返航与接替</summary>
+      <div class="exercise-body">
+       <p>巡检机飞三个固定采样点。召回在当前航段结束后生效，收到落地上锁回执后，另一架自动接手未采样的点。</p>
+       <label>巡检机 <select id="river-primary"><option>uav2</option><option>uav1</option></select></label>
+       <button id="river-start" disabled>开始双机验收</button>
+       <button id="river-recall" disabled>召回 uav2 并自动接替</button>
+       <p id="river-events" role="status"></p><div id="river-samples"></div>
+      </div>
+    </details>
+    <details id="task-library" hidden>
+      <summary>地图任务库</summary>
+      <div class="library-body">
+        <div class="library-tools">
+          <label>地图操作 <select id="library-mode" disabled>
+            <option value="">选择</option>
+            <option value="point">添加任务点</option>
+            <option value="area">绘制巡逻区</option>
+          </select></label>
+          <label>名称 <input id="library-name" maxlength="40" placeholder="可选，如河堤东段" disabled></label>
+          <button id="library-delete" type="button" disabled>删除选中</button>
+          <button id="library-submit" type="button" class="primary" disabled>提交任务库</button>
+          <button id="library-reload" type="button" hidden>重新读取</button>
+        </div>
+        <p><span id="library-status" role="status">等待仿真连接</span><small class="library-help">中键拖动 · 滚轮缩放</small></p>
+        <details id="library-text" hidden><summary>查看提交给 Qwen 的地图文本</summary><pre></pre></details>
+        <ul id="library-items" aria-label="当前地图任务"></ul>
+      </div>
+    </details>
+    <details id="exercise" hidden>
+      <summary>地图标绘与任务演练</summary>
+      <div class="exercise-body">
+        <div><label>地图操作 <select id="sketch-mode"><option value="">浏览</option><option value="point">点击加任务点</option><option value="area">拖出巡检矩形</option><option value="restrict">拖出演练限制区</option><option value="water">点击标记模拟积水</option></select></label>
+        <label>标绘名称 <input id="sketch-name" maxlength="40" placeholder="可选，如河堤东段"></label>
+        <button id="undo-sketch">撤销末项</button><button id="register-sketch">登记标绘</button>
+        <label>模拟机数 <select id="sim-count"><option>1</option><option>2</option><option>3</option><option>4</option></select></label></div>
+        <div><label>指令对象 <select id="sim-vehicle"><option>sim1</option></select></label>
+        <label><input type="checkbox" id="exercise-chat">总对话用于演练</label>
+        <button id="preview-exercise-fleet" hidden>用 XD 遥测预览分工</button><button id="new-exercise">新演练</button></div>
+        <div id="water-fields" hidden><label>模拟观测来源 <select id="report-source"><option>sim1</option><option>sim2</option><option>sim3</option><option>sim4</option></select></label>
+        <label>积水观测 <input id="water-note" maxlength="300" placeholder="例如 河堤内侧出现积水"></label> <label>置信度 <input id="water-confidence" type="number" min="0" max="1" step="0.01" placeholder="可留空"></label></div>
+        <p id="exercise-info" role="status"></p><div id="exercise-queue"></div><p id="exercise-fleet-result"></p>
+        <div id="exercise-proposal" hidden><span></span> <button id="apply-exercise">确认演练变更</button><button id="dismiss-exercise">放弃</button></div>
+        <div id="exercise-incidents"></div>
+        <details><summary>本轮演练记录</summary><ol id="exercise-history"></ol></details>
+      </div>
+    </details>
+    <div class="map-area">
+      <div id="vector-map" hidden></div>
+      <canvas id="flight-map" aria-label="二维地图，显示无人机位置、轨迹和任务点"></canvas>
+      <div class="map-controls" aria-label="地图导航">
+        <button id="zoom-in" title="放大" aria-label="放大">＋</button>
+        <button id="zoom-out" title="缩小" aria-label="缩小">−</button>
+        <button id="fit-map" title="适配机队与任务点（中键拖动，滚轮缩放）" aria-label="适配机队与任务点">◎</button>
+      </div>
+      <div class="map-key"><span><i></i>飞机与航迹</span><span><b>◇</b>普通任务点</span><span id="map-sketch-legend" hidden>○ 当前标绘</span><span id="map-coordinate"></span></div>
+      <div id="map-credit" class="map-credit" hidden></div>
+      <div class="map-notices"><p id="basemap-status" role="status"></p><p id="map-notice" role="status"></p></div>
+    </div>
+  </section>
+  <div class="workspace-sidebar">
+    <section class="conversation panel" aria-label="总对话">
+      <div class="panel-heading"><div><h2>总对话</h2><p>地图任务分组 · 本机仿真飞行</p></div><button id="new-conversation" type="button">新对话</button></div>
+      <div id="messages" class="chat-messages" aria-live="polite">
+        <div class="welcome"><h3>今天要巡检哪里？</h3><p>在地图标点或画巡逻区，提交后直接说任务名称和负责的飞机。也可以查询机队状态。</p>
+          <button class="prompt" type="button" data-prompt="汇报所有飞机的当前位置、电量和任务下一步。">查看机队状态</button></div>
+      </div>
+      <form id="chat-form" class="composer">
+        <label for="chat-input" class="sr-only">向 Qwen 提问或规划巡检</label>
+        <textarea id="chat-input" rows="2" maxlength="3000" placeholder="例如：uav1、uav2 负责所有任务点，uav3 负责河堤东段…" required></textarea>
+        <p id="library-chat-context" hidden><label><input type="checkbox" id="use-task-library">使用已提交任务库</label> <small id="library-chat-count"></small></p>
+        <p id="chat-map-context" hidden><label><input type="checkbox" id="attach-sketch">使用本轮地图标绘</label> <small id="chat-map-count"></small></p>
+        <div class="compose-row"><small>Enter 发送 · Shift + Enter 换行</small><button id="send" class="primary" type="submit">发送</button></div>
+      </form>
+    </section>
+    <section class="fleet-card panel" aria-labelledby="fleet-title">
+      <div class="panel-heading"><h2 id="fleet-title">机队状态</h2><span id="last-update" class="muted"></span></div>
+      <div class="fleet-scroll">
+        <table class="fleet-table">
+          <thead><tr><th>飞机</th><th>飞行状态</th><th>东 / 北 / 高 m</th><th>电量</th><th>任务 / 下一步</th></tr></thead>
+          <tbody id="fleet"><tr><td colspan="5">等待实时遥测</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+  <div id="drawer" class="drawer" hidden>
+    <section id="vehicle-panel" class="panel drawer-panel" aria-labelledby="vehicle-title" hidden>
+      <div class="panel-heading"><div><h2 id="vehicle-title">飞机详情</h2><p>实时遥测 · 单机指令</p></div><button id="close-vehicle" type="button">关闭</button></div>
+      <div id="vehicle-facts" class="drawer-facts"></div>
+      <div id="vehicle-messages" class="chat-messages" aria-live="polite"></div>
+      <form id="vehicle-form" class="composer">
+        <label for="vehicle-input" class="sr-only">向 Qwen 查询当前飞机</label>
+        <textarea id="vehicle-input" rows="2" maxlength="3000" placeholder="查询这架飞机，或输入「起飞盘旋」「返航降落」…" required></textarea>
+        <div class="compose-row"><small>Enter 发送 · Shift + Enter 换行</small><button id="vehicle-send" class="primary" type="submit">发送</button></div>
+      </form>
+    </section>
+  </div>
+</main>
+</body>
+</html>

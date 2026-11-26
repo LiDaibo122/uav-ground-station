@@ -1,0 +1,10 @@
+{
+  "capacity": "auto",
+  "height_m": 40,
+  "speed_mps": 18,
+  "capabilities": ["rgb"],
+  "aircraft_profiles": {},
+  "observation_ttl_s": 1800,
+  "point_match_m": 25,
+  "state_ttl_s": 3
+}

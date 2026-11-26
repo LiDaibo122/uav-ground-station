@@ -22,6 +22,7 @@ from uuid import uuid4
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0,str(ROOT))
 from packages.ground_core.tasks import validate_targets, normalize_targets
+from packages.ground_core.task_library import MAX_LIBRARY_TASKS, TaskLibrary, TaskLibraryConflict
 SCENE = json.loads((ROOT / 'config/scene.json').read_text())
 MAX_BODY = 128 * 1024
 MODEL = os.environ.get('GROUND_QWEN_MODEL', 'qwen3.5:4b')
@@ -36,6 +37,18 @@ TILE_CACHE = OrderedDict()
 TILE_LOCK = threading.Lock()
 SESSION_LOCK = threading.Lock()
 SESSION = None
+XD = None
+XD_STATIONS = {}
+XD_INTERFACES = {}
+XD_DISPATCH = None
+XD_MONITOR = False
+XD_BRIDGE = '/ground_bridge'
+XD_DATUM = None
+RIVER_TRIAL = None
+TASK_LIBRARY = None
+LIBRARY_REPLAY = None
+from packages.ground_core.inspection_rehearsal import Rehearsal
+REHEARSAL = Rehearsal(ROOT/"runs"/"inspection_rehearsals")
 
 
 def simulation_state():
@@ -189,20 +202,124 @@ def get_agent():
         if AGENT is None:
             from packages.ground_core.agent import Agent
             from packages.ground_core.model_stream import OllamaStream
-            AGENT=Agent(ROOT,lambda payload: request_json(OLLAMA_URL+'/api/chat',payload,timeout=180),MODEL,{
-                'scene':SCENE,'live_state':live_state,'demo_state':demo_state,
-                'simulation_state':simulation_state,'session':lambda:SESSION},
-                request_stream=OllamaStream(OLLAMA_URL+'/api/chat',LOCAL_HTTP))
+            options = {'request_stream':OllamaStream(OLLAMA_URL+'/api/chat',LOCAL_HTTP)}
+            env = {'scene':SCENE,'live_state':live_state,'demo_state':demo_state,
+                   'simulation_state':simulation_state,'session':lambda:SESSION}
+            directory = ROOT
+            if XD is not None:
+                from packages.adapters.xd_web import Runtime, SYSTEM, CATALOG
+                directory = ROOT/'runs'/('xd_monitor' if XD_MONITOR else 'xd_single')/XD.run_id
+                env = {'station': XD, 'interfaces': XD_INTERFACES}
+                from packages.adapters.xd_fleet import FleetRuntime, FLEET_SYSTEM, tool_catalog
+                registry = tool_catalog(XD_STATIONS, planning_only=XD_MONITOR)
+                fleet_env = dict(stations=XD_STATIONS, catalog=registry, interfaces=XD_INTERFACES, dispatch=XD_DISPATCH)
+                import rospy
+                fleet_env['observations'] = lambda: rospy.get_param(XD_BRIDGE + '/planning/observations', {})
+
+                def runtime_factory(environment, conversation, mode, text):
+                    if len(XD_STATIONS) == 1 and not XD_MONITOR and mode == 'live':
+                        runtime = Runtime(environment, conversation, mode, text)
+                        runtime.system = SYSTEM
+                        return runtime
+                    if mode in ('xd_vehicle', 'xd_task_library', 'xd_plan_only'):
+                        options = dict(fleet_env, workbench=True, vehicle_id=environment.get('vehicle_id'))
+                        if 'library_revision' in environment:
+                            options.update(read_library=lambda: TASK_LIBRARY.read(environment['library_run_id'],
+                                                                                  environment['library_revision']),
+                                           preview_library=preview_sketch_fleet)
+                        return FleetRuntime(options, conversation, mode, text)
+                    return FleetRuntime(dict(fleet_env, **{
+                        key: environment[key] for key in ('vehicle_id', 'displayed_plan_id') if key in environment
+                    }), conversation, mode, text)
+
+                options.update(think=False, runtime_factory=runtime_factory, system=FLEET_SYSTEM, registry=registry)
+            AGENT=Agent(directory,lambda payload: request_json(OLLAMA_URL+'/api/chat',payload,timeout=180),
+                        MODEL,env,**options)
         return AGENT
+
+
+def preview_sketch_fleet(shapes, allowed=None):
+    """Read-only preview, independent of all dispatch conversations."""
+    import rospy
+    from packages.adapters.xd_allocation import plan_inspections
+    specs, quotes = [], []
+    for t in shapes:
+        if t['kind']=='area':
+            area = {k:t[k] for k in ('west','south','east','north')}
+            quote = '西{west}米 南{south}米 东{east}米 北{north}米'.format(**area)
+            specs.append(dict(label=t.get('label',t['id']),area=area,bounds_quote=quote))
+            quotes.append(quote)
+        else:
+            specs.append(dict(label=t.get('label',t['id']),east=t['east'],north=t['north']))
+    states = [station.snapshot() for station in XD_STATIONS.values()]
+    observations = rospy.get_param(XD_BRIDGE+'/planning/observations',{})
+    plan = plan_inspections({'tasks':specs},None,states,observations,'。'.join(quotes), allowed_by_label=allowed)
+    if allowed is not None:
+        fields = ('tasks','assignments','unassigned','height_m','task_specs','frame','policy','capacity','excluded_vehicles')
+        return dict({key: plan[key] for key in fields},
+                    fleet=[{key: a[key] for key in ('id','available','reasons')} for a in plan['fleet']],
+                    origins={a['id']:[a['east_m'],a['north_m']] for a in plan['fleet']})
+    return {k:plan[k] for k in ('assignments','unassigned','created_at','fleet','tasks')}
 
 
 def chat(data,emit=None):
     if not MODEL_LOCK.acquire(blocking=False):
         raise RuntimeError('Qwen 正在处理另一条消息，请稍后继续')
     try:
-        return get_agent().chat(data,emit=emit)
+        if XD is not None and data.get('mode') == 'xd_vehicle':
+            vehicle = data.get('vehicle_id')
+            if not isinstance(vehicle, str) or vehicle not in XD_STATIONS:
+                raise ValueError('未找到单机窗口绑定的飞机')
+        if data.get('mode') == 'xd_task_library' or 'library_revision' in data:
+            if (TASK_LIBRARY is None or not isinstance(data.get('library_run_id'), str)
+                    or type(data.get('library_revision')) is not int):
+                raise ValueError('请先读取当前仿真场次的任务库')
+            TASK_LIBRARY.read(data['library_run_id'],data['library_revision'])
+        if XD_MONITOR and data.get('mode') not in ('xd_task_library', 'xd_vehicle'):
+            data = dict(data, mode='xd_plan_only')
+        return get_agent().chat(data, emit=emit)
     finally:
         MODEL_LOCK.release()
+
+
+def confirm_workbench(data):
+    key = data.get('conversation_id')
+    if not isinstance(key, str):
+        raise ValueError('缺少当前对话编号')
+    conversation, lock = get_agent()._load(key)
+    with lock:
+        plan = conversation.get('workbench_draft') or {}
+        if (not plan.get('id') or data.get('plan_id') != plan['id']
+                or data.get('run_id') != XD.run_id or plan['run_id'] != XD.run_id
+                or data.get('window') != plan.get('window')):
+            raise ValueError('草案已变化，请核对当前窗口的最新方案')
+        if plan.get('kind') == 'library_replay':
+            with TASK_LIBRARY.lock:
+                TASK_LIBRARY.read(plan['run_id'], plan['library_revision'])
+                return dict(kind='library_replay', state=LIBRARY_REPLAY.start(plan))
+        if not XD_DISPATCH:
+            raise ValueError('当前连接仅提供遥测')
+        if plan.get('kind') in ('local_action', 'library_points'):
+            from packages.adapters.xd_dispatch import check_gazebo_world
+            XD_DISPATCH.check_session(XD.run_id)
+            check_gazebo_world(XD_STATIONS)
+        if plan.get('kind') in ('library_points', 'library_flight'):
+            with TASK_LIBRARY.lock:
+                TASK_LIBRARY.read(plan['run_id'], plan['library_revision'])
+                if plan.get('flight_blocked'):
+                    raise ValueError(plan['flight_blocked'])
+                if plan.get('unassigned'):
+                    raise ValueError('还有未分配的任务，请调整分工')
+                return dict(kind='flight', receipt=XD_DISPATCH.confirm(plan, plan['id']))
+        if plan.get('kind') == 'local_action':
+            station = XD_STATIONS[plan['vehicle']]
+            with station.lock:
+                prior = next((j for j in station.history if j.get('plan_id') == plan['id']), None)
+                if prior:
+                    return dict(kind='local_action', vehicle=station.vehicle, status=prior['phase'], execution_id=prior['id'])
+                payload = {'altitude_m':40} if plan['action']=='takeoff' else {}
+                return dict(kind='local_action', **station.submit(plan['action'], payload, plan['id']))
+        return dict(kind='flight', receipt=XD_DISPATCH.confirm(plan, plan['id']))
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -224,6 +341,48 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlsplit(self.path)
+        replay = re.fullmatch(r'/api/xd/replays/([0-9a-f]{32})', parsed.path)
+        if replay and LIBRARY_REPLAY:
+            try:
+                return self.send_json(LIBRARY_REPLAY.status(replay[1]))
+            except ValueError as exc:
+                return self.send_json({'error':str(exc)}, 404)
+        if parsed.path == '/api/xd/task-library' and TASK_LIBRARY is not None:
+            return self.send_json(dict(TASK_LIBRARY.read(), max_items=MAX_LIBRARY_TASKS))
+        if parsed.path == '/api/xd/river-trial':
+            return self.send_json(RIVER_TRIAL.read() if RIVER_TRIAL else {'phase':'unavailable'})
+        if XD is not None:
+            if parsed.path=='/api/xd/interfaces':
+                return self.send_json(XD_INTERFACES)
+            execution = re.fullmatch(r'/api/xd/executions/([0-9a-f]{32})', parsed.path)
+            if execution and XD_DISPATCH:
+                return self.send_json(XD_DISPATCH.status(execution[1]))
+            if parsed.path == '/api/xd/map-sources':
+                from server.map_sources import read_map_sources
+                try:
+                    return self.send_json(read_map_sources(ROOT / 'config/map_sources.local.json'))
+                except (OSError, ValueError) as exc:
+                    reason = '无法读取底图配置' if isinstance(exc, OSError) else str(exc)
+                    return self.send_json({'error': reason}, 400)
+            if parsed.path == '/api/xd/console':
+                try:
+                    since = float(parse_qs(parsed.query).get('since', ['0'])[0])
+                    if not math.isfinite(since) or since < 0:
+                        raise ValueError('航迹时间无效')
+                except ValueError as exc:
+                    return self.send_json({'error': str(exc)}, 400)
+                return self.send_json(dict(run_id=XD.run_id, datum=XD_DATUM,
+                                           dispatch_available=XD_DISPATCH is not None, river_trial=RIVER_TRIAL is not None,
+                                           vehicles=[station.snapshot() for station in XD_STATIONS.values()],
+                                           trails={uid: station.trail(since) for uid, station in XD_STATIONS.items()}))
+            if parsed.path=='/api/xd/status':
+                if XD_MONITOR or len(XD_STATIONS) > 1:
+                    return self.send_json({'vehicles':[station.snapshot() for station in XD_STATIONS.values()]})
+                return self.send_json(XD.snapshot())
+            if parsed.path=='/api/health':
+                return self.send_json({'service':'fieldlink','backend':'xd_monitor' if XD_MONITOR else 'xd_fleet' if len(XD_STATIONS)>2 else 'xd_dual' if len(XD_STATIONS)==2 else 'xd_single','model':model_health()})
+            if parsed.path.startswith('/api/') and parsed.path!='/api/agent/activity':
+                return self.send_json({'error':'XD 单机接口不存在'},404)
         tile_match = re.fullmatch(r'/api/tiles/(terrain|imagery)/(\d+)/(\d+)/(\d+)\.(png|jpg)',parsed.path)
         if tile_match:
             kind, z, x, y, _ = tile_match.groups()
@@ -277,11 +436,20 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({'error':'接口不存在'},404)
         path = unquote(parsed.path)
         base = ROOT/'dist' if self.server.built else ROOT/'web'
-        if path.startswith('/vendor/cesium/') and not self.server.built:
+        if path.startswith('/vendor/maplibre/') and not self.server.built:
+            package = ROOT/'node_modules/maplibre-gl'
+            path = path[len('/vendor/maplibre/'):]
+            if path not in ('maplibre-gl.mjs', 'maplibre-gl-worker.mjs', 'maplibre-gl-shared.mjs',
+                            'maplibre-gl.css', 'LICENSE.txt'):
+                return self.send_json({'error': '文件不存在'}, 404)
+            base = package if path == 'LICENSE.txt' else package/'dist'
+        elif path.startswith('/vendor/cesium/') and not self.server.built:
             base = ROOT/'node_modules/cesium/Build/Cesium'
             path = path[len('/vendor/cesium/'):]
         else:
-            path = path.lstrip('/') or 'index.html'
+            path = path.lstrip('/') or ('chat.html' if XD is not None else 'index.html')
+        if XD is not None and path == 'chat.html':
+            path = 'xd-console.html'
         file = (base/path).resolve()
         if base.resolve() not in file.parents or not file.is_file():
             return self.send_json({'error':'文件不存在'},404)
@@ -332,6 +500,33 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(data,dict):
                 raise ValueError('请求需要 JSON 对象')
             path = urlsplit(self.path).path
+            if path == '/api/xd/confirm' and XD is not None:
+                return self.send_json(confirm_workbench(data))
+            if path == '/api/xd/task-library' and TASK_LIBRARY is not None:
+                return self.send_json(dict(TASK_LIBRARY.save(data), max_items=MAX_LIBRARY_TASKS))
+            if path == '/api/xd/river-trial' and RIVER_TRIAL:
+                if data.get('op')=='interpret':
+                    from packages.adapters.xd_handoff_trial import interpret_trial
+                    if not MODEL_LOCK.acquire(blocking=False):
+                        raise RuntimeError('Qwen 正在处理另一条消息')
+                    try:
+                        result=interpret_trial(data,RIVER_TRIAL.read(),MODEL,lambda payload:request_json(
+                            OLLAMA_URL+'/api/chat',payload,timeout=90))
+                        return self.send_json(result)
+                    finally:
+                        MODEL_LOCK.release()
+                return self.send_json(RIVER_TRIAL.command(data.get('op'),data.get('run_id'),data.get('primary')))
+            if path == '/api/inspection-rehearsal':
+                def ask(payload):
+                    if not MODEL_LOCK.acquire(blocking=False):
+                        raise RuntimeError('Qwen 正在处理其他请求')
+                    try:
+                        return request_json(OLLAMA_URL+'/api/chat',payload,timeout=90)
+                    finally:
+                        MODEL_LOCK.release()
+                return self.send_json(REHEARSAL.request(data, MODEL, ask, preview_sketch_fleet if XD else None))
+            if XD is not None and path not in ('/api/chat','/api/chat/stream'):
+                return self.send_json({'error':'XD 单机只接受对话请求'},404)
             if path=='/api/simulation/start':
                 return self.send_json(start_simulation(),202)
             if path=='/api/simulation/stop':
@@ -366,6 +561,8 @@ class Handler(BaseHTTPRequestHandler):
                     temporary.replace(directory/'tasks.json')
                 return self.send_json(task,201)
             return self.send_json({'error':'接口不存在'},404)
+        except TaskLibraryConflict as e:
+            return self.send_json({'error':str(e)},409)
         except (ValueError,TypeError,KeyError) as e:
             return self.send_json({'error':str(e)},400)
         except (urllib.error.URLError,TimeoutError,OSError):
@@ -379,8 +576,55 @@ def main():
     parser.add_argument('--host',default='127.0.0.1')
     parser.add_argument('--port',type=int,default=11843)
     parser.add_argument('--built',action='store_true')
+    xd_mode = parser.add_mutually_exclusive_group()
+    xd_mode.add_argument('--xd-single',action='store_true')
+    xd_mode.add_argument('--xd-monitor', metavar='BRIDGE_NAMESPACE', help='只读 ROS 遥测与集群规划')
     args=parser.parse_args()
     server=ThreadingHTTPServer((args.host,args.port),Handler)
+    global XD, XD_STATIONS, XD_INTERFACES, XD_DISPATCH, XD_MONITOR, XD_BRIDGE, TASK_LIBRARY
+    if args.xd_single or args.xd_monitor:
+        XD_MONITOR = bool(args.xd_monitor)
+        XD_BRIDGE = args.xd_monitor or XD_BRIDGE
+        if args.host!='127.0.0.1' or (args.xd_single and os.environ.get('ROS_MASTER_URI')!='http://127.0.0.1:11321'):
+            parser.error('需要本机 XD 单机仿真环境')
+        import rospy
+        from packages.adapters.xd_web import Station
+        rospy.init_node('xd_qwen_web',anonymous=True,disable_signals=True)
+        from packages.adapters.xd_web import CATALOG
+        from packages.adapters.xd_fleet import tool_catalog
+        vehicles = rospy.get_param(XD_BRIDGE + '/bridge/vehicles')
+        if XD_MONITOR:
+            from packages.adapters.xd_web import TelemetryStation
+            XD_STATIONS = {key: TelemetryStation(key, ns, XD_BRIDGE) for key, ns in sorted(vehicles.items())}
+        else:
+            XD_STATIONS = {key: Station(ROOT/'runs/xd_single/jobs', key) for key in sorted(vehicles)}
+        XD = next(iter(XD_STATIONS.values()))
+        mode_directory = 'xd_monitor' if XD_MONITOR else 'xd_single'
+        TASK_LIBRARY = TaskLibrary(ROOT/'runs'/mode_directory/XD.run_id/'task-library.json',XD.run_id)
+        global LIBRARY_REPLAY
+        from packages.ground_core.library_replay import LibraryReplay
+        LIBRARY_REPLAY = LibraryReplay(TASK_LIBRARY.path.parent/'map-replays')
+        if not XD_MONITOR:
+            from packages.adapters.xd_dispatch import Dispatch
+            from sensor_msgs.msg import NavSatFix
+            XD_DISPATCH = Dispatch(ROOT/'runs/xd_single'/XD.run_id/'executions', XD_STATIONS)
+
+            if set(XD_STATIONS)=={'uav1','uav2'}:
+                global RIVER_TRIAL
+                from packages.adapters.xd_handoff_trial import RiverTrial
+                RIVER_TRIAL = RiverTrial(XD_STATIONS, XD_DISPATCH.directory.parent)
+
+            def set_datum(message):
+                global XD_DATUM
+                if all(math.isfinite(x) for x in (message.latitude, message.longitude, message.altitude)):
+                    XD_DATUM = dict(lat=message.latitude, lon=message.longitude, altitude_m=message.altitude)
+
+            rospy.Subscriber('/world/datum', NavSatFix, set_datum, queue_size=1)
+        registry = tool_catalog(vehicles, planning_only=XD_MONITOR) if XD_MONITOR or len(vehicles)>1 else CATALOG
+        XD_INTERFACES = dict(schema_version=1, vehicles=vehicles, frame='world ENU 米',
+                             endpoints=rospy.get_param(XD_BRIDGE + '/bridge/xd_interfaces'),
+                             telemetry=rospy.get_param(XD_BRIDGE + '/bridge/topics'),
+                             tools=[d['wire'] for d in registry.values()])
     for sig in (signal.SIGTERM,signal.SIGHUP):
         signal.signal(sig,lambda *_: (_ for _ in ()).throw(KeyboardInterrupt()))
     server.built=args.built

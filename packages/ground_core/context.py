@@ -9,7 +9,7 @@ import json
 import math
 
 
-READ_TOOLS=('get_fleet_state','get_mission_status')
+READ_TOOLS=('get_fleet_state','get_mission_status','xd_state','xd_allocation_status')
 WRITE_TOOLS=('execute_plan','takeoff_aircraft','control_aircraft')
 
 
@@ -99,6 +99,17 @@ def compact_tool_result(name,payload,historical=False):
             result.update(pick(value,('execution_id','status','assignments','visited_task_ids','remaining_targets','error')))
         return {'ok':True,'result':result}
     if name=='get_fleet_state':result=compact_fleet(value)
+    elif name=='xd_library_allocate':
+        result=pick(value,('id','library_revision','capacity','assignments','unassigned','flight_blocked'))
+        result['task_labels']={t['id']:t['label'] for t in value.get('tasks',[])}
+        result['unavailable']={a['id']:a['reasons'] for a in value.get('fleet',[]) if not a['available']}
+    elif name=='xd_allocate':
+        result=pick(value,('id','algorithm','status','assignments','unassigned'))
+        result['tasks']=[pick(t,('id','label','priority','basis')) for t in value['tasks']]
+        result['excluded']={a['id']:a['reasons'] for a in value['fleet'] if not a['available']}
+    elif name in ('xd_confirm_allocation','xd_allocation_status'):
+        result=pick(value,('plan_id','status','repeated','task_labels','unassigned'))
+        result['vehicles']={uid:pick(row,('task_ids','phase','detail')) for uid,row in value['vehicles'].items()}
     elif name in ('get_plan','plan_inspection'):result=compact_plan(value)
     elif name=='compare_allocations':
         result=pick(value,('plan_id','results','note'))

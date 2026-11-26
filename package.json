@@ -9,6 +9,11 @@
     "test": "python3 -m unittest discover -s tests -v",
     "test:browser": "node tests/browser.mjs"
   },
-  "dependencies": { "cesium": "1.123.1" },
-  "devDependencies": { "playwright": "1.48.2" }
+  "dependencies": {
+    "cesium": "1.123.1",
+    "maplibre-gl": "6.19.0"
+  },
+  "devDependencies": {
+    "playwright": "1.48.2"
+  }
 }
